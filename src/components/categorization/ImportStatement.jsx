@@ -19,6 +19,7 @@ import { Link } from "@tanstack/react-router";
 import CsvDropZone from "../CsvDropZone";
 
 const PREVIEW_ROW_COUNT = 10;
+const isNonEmptyRow = (row) => row.some((c) => String(c).trim());
 
 export default function ImportStatement({
   setCsvData,
@@ -30,6 +31,27 @@ export default function ImportStatement({
   const [rawRows, setRawRows] = useState(null);
   const [parsedFileName, setParsedFileName] = useState("");
   const [headerIdx, setHeaderIdx] = useState(null);
+  const [droppedCols, setDroppedCols] = useState(new Set());
+
+  // Position-aware column names derived from the selected header row.
+  // Empty strings are preserved so that fields[j] always maps to column j.
+  const fields =
+    headerIdx !== null && rawRows
+      ? rawRows[headerIdx].map((f) => String(f).trim())
+      : [];
+
+  // Non-empty names only — used for display and export.
+  const colNames = fields.filter(Boolean);
+  const includedCount = colNames.length - droppedCols.size;
+
+  function toggleCol(col) {
+    setDroppedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  }
 
   function handleCSVParseComplete(results) {
     setRawRows(results.data);
@@ -40,24 +62,33 @@ export default function ImportStatement({
     setFileName(name);
   }
 
+  function handleHeaderClick(i) {
+    setHeaderIdx(i);
+    setDroppedCols(new Set());
+  }
+
   function handleConfirm() {
-    const fields = rawRows[headerIdx].map((f) => String(f).trim());
-    const dataRows = rawRows
-      .slice(headerIdx + 1)
-      .filter((r) => r.some((c) => String(c).trim()));
+    const rawFields = rawRows[headerIdx].map((f) => String(f).trim());
+    const isIncludedField = (f) => Boolean(f) && !droppedCols.has(f);
+    const dataRows = rawRows.slice(headerIdx + 1).filter(isNonEmptyRow);
     const data = dataRows.map((row, index) => {
       const obj = { CO_id: index, CO_category: "" };
-      fields.forEach((field, j) => {
-        if (field) obj[field] = row[j] ?? "";
+      rawFields.forEach((field, j) => {
+        if (isIncludedField(field)) obj[field] = row[j] ?? "";
       });
       return obj;
     });
     setCsvData(data);
-    setCsvColumns(fields.filter(Boolean));
+    setCsvColumns(rawFields.filter(isIncludedField));
     nextStep();
   }
 
-  const previewRows = rawRows ? rawRows.slice(0, PREVIEW_ROW_COUNT) : [];
+  const previewRows = rawRows
+    ? rawRows
+        .map((row, i) => ({ row, originalIndex: i }))
+        .filter(({ row }) => isNonEmptyRow(row))
+        .slice(0, PREVIEW_ROW_COUNT)
+    : [];
 
   return (
     <>
@@ -103,13 +134,16 @@ export default function ImportStatement({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Click the row that contains your column headers
+              {headerIdx === null
+                ? "Click the row that contains your column headers"
+                : "Click a column name to exclude it from import"}
             </p>
             <button
               className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               onClick={() => {
                 setRawRows(null);
                 setHeaderIdx(null);
+                setDroppedCols(new Set());
               }}
             >
               ← Different file
@@ -119,13 +153,13 @@ export default function ImportStatement({
           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="min-w-full text-xs">
               <tbody>
-                {previewRows.map((row, i) => {
-                  const isHeader = i === headerIdx;
-                  const isSkipped = headerIdx !== null && i < headerIdx;
+                {previewRows.map(({ row, originalIndex }) => {
+                  const isHeader = originalIndex === headerIdx;
+                  const isSkipped = headerIdx !== null && originalIndex < headerIdx;
                   return (
                     <tr
-                      key={i}
-                      onClick={() => setHeaderIdx(i)}
+                      key={originalIndex}
+                      onClick={() => handleHeaderClick(originalIndex)}
                       className={[
                         "cursor-pointer border-b border-gray-100 last:border-0 transition-colors dark:border-gray-800",
                         isHeader ? "bg-indigo-50 dark:bg-indigo-900/20" : "",
@@ -136,7 +170,7 @@ export default function ImportStatement({
                       ].join(" ")}
                     >
                       <td className="w-6 py-2 pl-3 pr-1 text-center font-mono text-gray-400 select-none">
-                        {i + 1}
+                        {originalIndex + 1}
                       </td>
                       <td className="w-20 px-2 py-1.5">
                         {isHeader && (
@@ -150,24 +184,61 @@ export default function ImportStatement({
                           </span>
                         )}
                       </td>
-                      {row.map((cell, j) => (
-                        <td
-                          key={j}
-                          className={[
-                            "max-w-36 truncate px-3 py-2",
-                            isHeader
-                              ? "font-semibold text-indigo-900 dark:text-indigo-200"
-                              : "text-gray-700 dark:text-gray-300",
-                            isSkipped
-                              ? "line-through text-gray-400"
-                              : "",
-                          ].join(" ")}
-                        >
-                          {String(cell) || (
-                            <span className="italic text-gray-300">empty</span>
-                          )}
-                        </td>
-                      ))}
+                      {row.map((cell, j) => {
+                        const colName = fields[j] || null;
+                        const isDropped = colName && droppedCols.has(colName);
+                        return (
+                          <td
+                            key={j}
+                            onClick={
+                              isHeader && colName
+                                ? (e) => {
+                                    e.stopPropagation();
+                                    toggleCol(colName);
+                                  }
+                                : undefined
+                            }
+                            className={[
+                              "max-w-36 truncate px-3 py-2",
+                              isHeader
+                                ? "font-semibold text-indigo-900 dark:text-indigo-200"
+                                : "text-gray-700 dark:text-gray-300",
+                              isSkipped ? "line-through text-gray-400" : "",
+                              isDropped ? "opacity-30 line-through" : "",
+                              isHeader && colName
+                                ? "cursor-pointer rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                                : "",
+                            ].join(" ")}
+                          >
+                            {isHeader && colName ? (
+                              <span className="flex items-center gap-1">
+                                <span>
+                                  {String(cell) || (
+                                    <span className="italic text-gray-300">
+                                      empty
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  className={
+                                    isDropped
+                                      ? "text-[9px] text-red-400"
+                                      : "text-[9px] text-green-500"
+                                  }
+                                >
+                                  {isDropped ? "✗" : "✓"}
+                                </span>
+                              </span>
+                            ) : (
+                              String(cell) || (
+                                <span className="italic text-gray-300">
+                                  empty
+                                </span>
+                              )
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -185,6 +256,13 @@ export default function ImportStatement({
                   </>
                 )}
                 <strong>{rawRows.length - headerIdx - 1}</strong> transactions
+                {droppedCols.size > 0 && (
+                  <>
+                    {" "}
+                    · <strong>{includedCount}</strong> of{" "}
+                    <strong>{colNames.length}</strong> columns
+                  </>
+                )}
               </p>
               <button
                 onClick={handleConfirm}

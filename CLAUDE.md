@@ -44,6 +44,17 @@ Each step component receives `previousStep` and `nextStep` callbacks. `FinishCat
 
 Four exported functions for reading/writing/merging/clearing `localStorage`. `addMappingRulesToLocalStorage` merges (new rules overwrite existing ones for the same identifier value).
 
+## Feature design reference
+
+When discussing or implementing new features, benchmark against how established expense tracking apps handle the same problem:
+
+- **YNAB** — gold standard for zero-based budgeting UX; reference for category management, rule-based assignment, and goal tracking
+- **Monarch Money** — modern Mint replacement; reference for transaction review flow, tagging, and split transactions
+- **Copilot** — Apple-native polish; reference for merchant enrichment, recurring detection, and visual spend summaries
+- **Mint** (sunset Jan 2024) — historical reference for aggregation UX patterns now widely adopted elsewhere
+
+Before suggesting a feature, consider how these apps solved the same problem and whether CategorizeOnce should match, simplify, or intentionally diverge from their approach.
+
 ## Prebuild scripts
 
 `npm run build` auto-runs two Node scripts first:
