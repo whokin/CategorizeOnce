@@ -24,12 +24,13 @@ export default function CsvDropZone({
   handleFileDropError,
   handleCSVParseComplete,
   handleCSVParseError,
+  rawMode = false,
 }) {
   // TODO: handle file input errors and file drop errors
   function parseCSV(file) {
     Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
+      header: !rawMode,
+      skipEmptyLines: !rawMode,
       complete: handleCSVParseComplete,
       error:
         handleCSVParseError ||
