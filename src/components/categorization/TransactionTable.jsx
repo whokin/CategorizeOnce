@@ -51,6 +51,8 @@ const defaultCategories = [
   "Personal::Gym/health membership",
   "Personal::Laundry/dry cleaning",
   "Personal::Clothing",
+  "Personal::Shopping",
+  "Personal::Education",
   "Entertainment::Vacations",
   "Entertainment::Sports | recreational activities",
   "Entertainment::Hobbies | interests",
