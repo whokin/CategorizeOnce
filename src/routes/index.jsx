@@ -308,6 +308,9 @@ function HomePage() {
               Junlin Shang
             </a>
           </p>
+          <p className="mt-2 text-center text-sm/6 text-gray-500 dark:text-gray-500">
+            Forked and modified by his best friend Warren Ho Kin
+          </p>
         </div>
       </footer>
     </div>
